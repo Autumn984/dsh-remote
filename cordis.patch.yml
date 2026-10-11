@@ -1,0 +1,10 @@
+- insert:
+    - id: dsh-remote
+      name: dsh-remote
+      config:
+        enabled: true
+        port: 4666
+        bind: lan
+        token: ""
+        tunnel: false
+        cloudflaredPath: ""

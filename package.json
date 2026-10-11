@@ -1,0 +1,44 @@
+{
+  "name": "dsh-remote",
+  "version": "1.2.0",
+  "description": "DSH 手机远程控制插件：手机扫码即可查看会话、发送消息与图片文件、取消任务（局域网 / IPv6 / Cloudflare 隧道，令牌鉴权）。A remote-control plugin for DeepSeek Harness: control your sessions from a phone via QR code (LAN / IPv6 / Cloudflare Tunnel, token-authenticated).",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/",
+    "cordis.patch.yml",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.0"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "3.18.4"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "remote-control",
+    "mobile",
+    "ios",
+    "cloudflare-tunnel",
+    "qr-code"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings-plugins"
+      ],
+      "platform": "web"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

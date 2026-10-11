@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0d1117">
+<title>DSH 远程控制</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: #0d1117; color: #e6edf3; height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  #app { max-width: 560px; margin: 0 auto; height: 100%; display: flex; flex-direction: column;
+    padding: calc(env(safe-area-inset-top) + 10px) 12px calc(env(safe-area-inset-bottom) + 10px); }
+  header { display: flex; align-items: center; gap: 8px; padding: 4px 2px 12px; }
+  header h1 { font-size: 18px; margin: 0; flex: 1; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #3fb950; display: inline-block; }
+  .dot.err { background: #f85149; }
+  .dot.wait { background: #d29922; }
+  .btn { border: 1px solid #30363d; background: #21262d; color: #e6edf3; border-radius: 10px;
+    padding: 10px 14px; font-size: 15px; cursor: pointer; }
+  .btn:active { background: #30363d; }
+  .btn.primary { background: #1f6feb; border-color: #1f6feb; }
+  .btn.danger { background: #b62324; border-color: #b62324; color: #fff; }
+  .btn:disabled { opacity: .5; }
+  /* 列表 */
+  #list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 14px;
+    margin-bottom: 10px; cursor: pointer; }
+  .card .t { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .card .meta { color: #8b949e; font-size: 12px; margin-top: 6px; line-height: 1.6; word-break: break-all; }
+  .badge { font-size: 11px; border-radius: 6px; padding: 2px 7px; flex: none; }
+  .badge.run { background: #1f6feb33; color: #58a6ff; }
+  .badge.sub { background: #8b949e22; color: #8b949e; }
+  .badge.blank { background: #30363d; color: #8b949e; }
+  .spinner { width: 12px; height: 12px; border: 2px solid #58a6ff66; border-top-color: #58a6ff;
+    border-radius: 50%; display: inline-block; animation: spin 1s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty { color: #8b949e; text-align: center; padding: 60px 0; font-size: 14px; line-height: 2; }
+  /* 会话详情 */
+  #detail { display: none; flex-direction: column; height: 100%; }
+  #detail.on { display: flex; }
+  .dtop { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; }
+  .dtop .ttl { flex: 1; font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #msgs { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 4px 2px; }
+  .msg { margin: 6px 0; }
+  .who { font-size: 11px; color: #8b949e; margin-bottom: 2px; }
+  .bubble { border-radius: 12px; padding: 9px 11px; font-size: 14px; line-height: 1.55;
+    word-break: break-word; }
+  .mdp { margin: 2px 0; }
+  .mdh { font-weight: 700; margin: 7px 0 3px; color: #58a6ff; }
+  .mdli { margin: 1px 0 1px 8px; }
+  .mdhr { border-top: 1px solid #30363d; margin: 8px 0; }
+  .mdblank { height: 6px; }
+  .mdtable { border-collapse: collapse; margin: 6px 0; width: 100%; }
+  .mdtable th, .mdtable td { border: 1px solid #30363d; padding: 5px 8px; font-size: 13px;
+    text-align: left; vertical-align: top; word-break: break-word; }
+  .mdtable th { background: rgba(31, 111, 235, .16); color: #58a6ff; font-weight: 600; }
+  .msg.user .bubble .mdh { color: #fff; }
+  .msg.user .bubble .mdtable th, .msg.user .bubble .mdtable td { border-color: rgba(255,255,255,.25); }
+  .msg.user .bubble .mdtable th { background: rgba(0,0,0,.2); color: #fff; }
+  .codeblock { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 8px 10px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch; font-family: ui-monospace, Consolas, monospace;
+    font-size: 12.5px; line-height: 1.5; white-space: pre; margin: 6px 0; }
+  .msg.user .bubble .codeblock { background: rgba(0,0,0,.25); border-color: rgba(255,255,255,.2); }
+  .bubble code { background: #21262d; border: 1px solid #30363d; border-radius: 4px;
+    padding: 0 4px; font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+  .msg.user .bubble code { background: rgba(0,0,0,.25); border-color: rgba(255,255,255,.25); }
+  .msg.user .bubble { background: #1f6feb; color: #fff; border-bottom-right-radius: 4px; }
+  .msg.assistant .bubble { background: #161b22; border: 1px solid #30363d; border-bottom-left-radius: 4px; }
+  .msg.tool { background: #161b22; border: 1px dashed #30363d; border-radius: 10px; padding: 5px 10px;
+    font-size: 12px; color: #8b949e; }
+  .msg.tool .nm { color: #d29922; font-weight: 600; }
+  .msg.tool .st.ok { color: #3fb950; }
+  .msg.tool .st.err { color: #f85149; }
+  .msg.tool pre { white-space: pre-wrap; word-break: break-all; margin: 4px 0 0; font-size: 11px; max-height: 120px; overflow: hidden; }
+  .divider { text-align: center; color: #484f58; font-size: 11px; margin: 14px 0 8px; }
+  .chip { display: inline-block; background: #21262d; border: 1px solid #30363d; color: #8b949e;
+    border-radius: 999px; font-size: 11px; padding: 2px 10px; margin: 2px 4px 2px 0; }
+  .usage { font-size: 11px; color: #484f58; margin-top: 6px; }
+  /* 输入区 */
+  #inputbar { display: flex; gap: 8px; padding-top: 10px; align-items: flex-end; }
+  #input { flex: 1; background: #161b22; border: 1px solid #30363d; color: #e6edf3; border-radius: 12px;
+    padding: 11px 12px; font-size: 15px; resize: none; min-height: 44px; max-height: 140px; font-family: inherit; }
+  #input:focus { outline: none; border-color: #1f6feb; }
+  #send { height: 46px; padding: 0 20px; }
+  .footer { display: flex; gap: 8px; padding-top: 8px; }
+  .older-wrap { padding: 0 0 6px; text-align: center; }
+  #btn-older { font-size: 13px; padding: 7px 16px; }
+  /* 待发附件 */
+  #pending { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 2px 0; }
+  .pchip { display: flex; align-items: center; gap: 6px; background: #161b22; border: 1px solid #30363d;
+    border-radius: 10px; padding: 5px 8px; max-width: 100%; }
+  .pthumb { width: 34px; height: 34px; border-radius: 6px; object-fit: cover; flex: none; }
+  .pthumb.doc { display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .pname { font-size: 12px; color: #8b949e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+  .px { background: none; border: none; color: #8b949e; font-size: 16px; padding: 0 2px; cursor: pointer; }
+  #attach { width: 46px; height: 46px; padding: 0; flex: none; }
+  .hint { color: #484f58; font-size: 12px; text-align: center; padding: 10px 0 2px; }
+  a { color: #58a6ff; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span id="dot" class="dot"></span>
+    <h1>DSH 远程控制</h1>
+    <button class="btn" id="btn-new">＋ 新会话</button>
+  </header>
+
+  <div id="list"></div>
+
+  <div id="detail">
+    <div class="dtop">
+      <button class="btn" id="btn-back">‹ 返回</button>
+      <div class="ttl" id="d-title"></div>
+      <button class="btn danger" id="btn-cancel" style="display:none">停止</button>
+    </div>
+    <div class="older-wrap"><button class="btn" id="btn-older" style="display:none">↑ 加载更早的消息</button></div>
+    <div id="msgs"></div>
+    <div id="pending"></div>
+    <div id="inputbar">
+      <button class="btn" id="attach" title="添加图片或文件">📎</button>
+      <textarea id="input" rows="1" placeholder="给 Agent 发消息…"></textarea>
+      <button class="btn primary" id="send">发送</button>
+    </div>
+    <input type="file" id="file" accept="image/*,text/*,application/pdf,.md,.txt,.json,.csv,.zip,.doc,.docx" multiple style="display:none">
+    <div class="hint" id="hint" style="display:none">Agent 运行中，新消息会排队。</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+var TOKEN = '';
+try {
+  TOKEN = new URL(location.href).searchParams.get('t') || '';
+  if (TOKEN) localStorage.setItem('dsh-remote-token', TOKEN);
+  if (!TOKEN) TOKEN = localStorage.getItem('dsh-remote-token') || '';
+} catch (e) {}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function rel(ts) {
+  if (!ts) return '';
+  var d = Date.now() - ts;
+  if (d < 60000) return '刚刚';
+  if (d < 3600000) return Math.floor(d / 60000) + ' 分钟前';
+  if (d < 86400000) return Math.floor(d / 3600000) + ' 小时前';
+  return new Date(ts).toLocaleDateString();
+}
+async function api(path, opts) {
+  var o = opts || {};
+  o.headers = Object.assign({ 'x-dsh-remote-token': TOKEN, 'content-type': 'application/json' }, o.headers || {});
+  var r = await fetch(path, o);
+  if (r.status === 401) { showAuth(); throw new Error('unauthorized'); }
+  var j = await r.json().catch(function () { return {}; });
+  if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+
+/* —— 视图 —— */
+var listEl = document.getElementById('list');
+var detailEl = document.getElementById('detail');
+var msgsEl = document.getElementById('msgs');
+var current = null;      // 当前打开会话 id
+var lastSeq = -1;
+var sessions = [];
+
+function showAuth() {
+  listEl.innerHTML = '<div class="empty">令牌无效或已过期。<br>请在电脑上打开配对页面重新扫码，<br>或用 Safari 打开 <b>http://电脑IP:端口/m?t=令牌</b> 形式的链接。</div>';
+}
+
+function renderList() {
+  var st = listEl.scrollTop;
+  var sig = JSON.stringify(sessions.map(function (s) {
+    return [s.id, s.running, s.updatedAt, s.title, s.blank];
+  }));
+  if (sig === listSig) return;
+  listSig = sig;
+  if (!sessions.length) {
+    listEl.innerHTML = '<div class="empty">没有活动会话。<br>点右上角「＋ 新会话」创建一个，<br>或先在电脑端开启一个任务。</div>';
+    listEl.scrollTop = 0;
+    return;
+  }
+  var html = '';
+  sessions.forEach(function (s) {
+    var badges = '';
+    if (s.running) badges += '<span class="spinner"></span>';
+    if (s.origin === 'subagent') badges += '<span class="badge sub">子Agent</span>';
+    if (s.blank) badges += '<span class="badge blank">空会话</span>';
+    var title = s.title || (s.cwd ? s.cwd.split(/[\\/]/).pop() : '新会话');
+    html += '<div class="card" data-id="' + esc(s.id) + '" onclick="openSession(this.dataset.id)">'
+      + '<div class="t">' + badges + '<span>' + esc(title) + '</span></div>'
+      + '<div class="meta">' + (s.running ? '运行中' : '空闲') + ' · ' + rel(s.updatedAt)
+      + (s.cwd ? '<br>' + esc(s.cwd) : '') + '</div></div>';
+  });
+  listEl.innerHTML = html;
+  listEl.scrollTop = st;
+}
+
+function blocksToHtml(content) {
+  if (!Array.isArray(content)) return '';
+  var out = '';
+  content.forEach(function (b) {
+    if (!b || typeof b !== 'object') return;
+    if (b.type === 'text' && b.text) out += mdLite(b.text);
+    else if (b.type === 'image') out += '<span class="chip">🖼 图片</span>';
+    else if (b.type === 'file') out += '<span class="chip">📎 ' + esc((b.attachment && b.attachment.name) || '文件') + '</span>';
+    // reasoning 思考块与 tool-call 不渲染，保持界面简洁
+  });
+  return out;
+}
+
+/* 轻量 Markdown 渲染：先转义再转换；支持标题/加粗/列表/行内代码/围栏代码块/表格 */
+function mdLite(s) {
+  var lines = esc(s).split('\n');
+  var out = [];
+  var inList = false;
+  var inCode = false;
+  var codeBuf = [];
+  var tbl = [];
+  var closeList = function () { if (inList) { out.push('</div>'); inList = false; } };
+  var inlineMd = function (t) {
+    return t.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+  };
+  var flushTable = function () {
+    if (!tbl.length) return;
+    var rows = tbl.map(function (r) {
+      return r.replace(/^\|/, '').replace(/\|$/, '').split('|').map(function (c) { return inlineMd(c.trim()); });
+    });
+    var html = '<table class="mdtable">';
+    for (var r = 0; r < rows.length; r++) {
+      if (r === 1 && rows[1].every(function (c) { return /^:?-{2,}:?$/.test(c); })) continue; // 表头分隔行
+      var cell = r === 0 ? 'th' : 'td';
+      html += '<tr>' + rows[r].map(function (c) { return '<' + cell + '>' + c + '</' + cell + '>'; }).join('') + '</tr>';
+    }
+    html += '</table>';
+    out.push(html);
+    tbl = [];
+  };
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (/^```/.test(line)) {
+      flushTable();
+      if (inCode) {
+        out.push('<pre class="codeblock">' + codeBuf.join('\n') + '</pre>');
+        codeBuf = [];
+        inCode = false;
+      } else {
+        closeList();
+        inCode = true;
+      }
+      continue;
+    }
+    if (inCode) { codeBuf.push(line); continue; }
+    if (/^\|/.test(line)) { closeList(); tbl.push(line); continue; }
+    flushTable();
+    var md = inlineMd(line);
+    if (/^#{1,4}\s+/.test(md)) {
+      closeList();
+      out.push('<div class="mdh">' + md.replace(/^#{1,4}\s+/, '') + '</div>');
+    } else if (/^[-*]\s+/.test(md)) {
+      if (!inList) { out.push('<div class="mdlist">'); inList = true; }
+      out.push('<div class="mdli">• ' + md.replace(/^[-*]\s+/, '') + '</div>');
+    } else if (/^\d{1,2}[.、)]\s+/.test(md)) {
+      if (!inList) { out.push('<div class="mdlist">'); inList = true; }
+      out.push('<div class="mdli">' + md.replace(/^\d{1,2}[.、)]\s+/, '') + '</div>');
+    } else {
+      closeList();
+      if (md === '') out.push('<div class="mdblank"></div>');
+      else if (/^(-{3,}|_{3,})$/.test(md)) out.push('<div class="mdhr"></div>');
+      else out.push('<div class="mdp">' + md + '</div>');
+    }
+  }
+  flushTable();
+  if (inCode) out.push('<pre class="codeblock">' + codeBuf.join('\n') + '</pre>');
+  closeList();
+  return out.join('');
+}
+
+function msgHtml(ev) {
+  var t = ev.type, d = ev.data || {};
+  if (t === 'user/message') {
+    // 后台任务通知等非用户输入（source.kind 不是 user）不显示
+    if (d.source && d.source.kind !== 'user') return '';
+    var c = Array.isArray(d.content) ? d.content : (d.message ? d.message.content : undefined);
+    var uhtml = blocksToHtml(c);
+    if (!uhtml) return ''; // 无可见内容的消息不渲染空框
+    return '<div class="msg user"><div class="who">你</div><div class="bubble">' + uhtml + '</div></div>';
+  }
+  if (t === 'assistant/message') {
+    var html = blocksToHtml(d.message ? d.message.content : undefined);
+    if (!html) return ''; // 只有工具调用等已隐藏内容的消息，不再显示空框
+    if (d.usage) html += '<div class="usage">tokens: 入 ' + (d.usage.inputTokens || 0) + ' · 出 ' + (d.usage.outputTokens || 0) + '</div>';
+    return '<div class="msg assistant"><div class="who">Agent</div><div class="bubble">' + html + '</div></div>';
+  }
+  if (t === 'turn/start') return '<div class="divider">—— 回合 ' + d.turn + ' ——</div>';
+  if (t === 'turn/end') {
+    var reason = (d.reason && d.reason.kind) || '';
+    if (reason === 'aborted') return '<div class="divider">⏹ 已中断</div>';
+    if (reason === 'interrupted') return '<div class="divider">⏸ 已打断</div>';
+    return '';
+  }
+  if (t === 'request/context') return '<span class="chip">🤖 ' + esc(d.provider || '') + '/' + esc(d.model || '') + '</span>';
+  return '';
+}
+
+var msgSig = '';
+var listSig = '';
+var allEvents = [];
+var hasMoreOld = false;
+var loadingOld = false;
+
+function mergeTail(tail) {
+  if (!tail || !tail.length) return;
+  if (!allEvents.length) { allEvents = tail; return; }
+  var seen = {};
+  var arr = allEvents.concat(tail);
+  var out = [];
+  for (var i = 0; i < arr.length; i++) {
+    if (!seen[arr[i].seq]) { seen[arr[i].seq] = true; out.push(arr[i]); }
+  }
+  out.sort(function (a, b) { return a.seq - b.seq; });
+  if (out.length > 1500) out = out.slice(out.length - 1500);
+  allEvents = out;
+}
+
+function nearBottom() {
+  return msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 120;
+}
+function renderMsgs(events, forceScroll) {
+  var html = '';
+  var shown = false;
+  for (var i = 0; i < events.length; i++) {
+    var ev = events[i];
+    // 不渲染工具调用与工具结果（界面更简洁）
+    if (ev.type === 'tool/call' || ev.type === 'tool/result') continue;
+    var h = msgHtml(ev);
+    if (h) { html += h; shown = true; }
+  }
+  msgsEl.innerHTML = html || '<div class="empty">还没有对话内容，发送第一条消息开始。</div>';
+  if (shown && forceScroll) msgsEl.scrollTop = msgsEl.scrollHeight;
+}
+
+/* —— 数据轮询 —— */
+async function refreshStatus() {
+  try {
+    var j = await api('/api/status');
+    document.getElementById('dot').className = 'dot' + (j.apiAvailable ? '' : ' wait');
+    sessions = j.sessions || [];
+    if (!detailEl.classList.contains('on')) renderList();
+    if (current) {
+      var s = sessions.find(function (x) { return x.id === current; });
+      var cancelBtn = document.getElementById('btn-cancel');
+      cancelBtn.style.display = s && s.running ? '' : 'none';
+      document.getElementById('hint').style.display = s && s.running ? '' : 'none';
+      var ttl = document.getElementById('d-title');
+      if (s) ttl.textContent = s.title || (s.cwd ? s.cwd.split(/[\\/]/).pop() : '会话');
+    }
+  } catch (e) {
+    document.getElementById('dot').className = 'dot err';
+  }
+}
+async function refreshMsgs(forceScroll) {
+  if (!current) return;
+  try {
+    var j = await api('/api/session/' + encodeURIComponent(current) + '/transcript');
+    var events = j.events || [];
+    hasMoreOld = j.hasMore === true;
+    document.getElementById('btn-older').style.display = hasMoreOld ? '' : 'none';
+    var sig = events.length ? (events.length + ':' + events[0].seq + ':' + events[events.length - 1].seq) : '0';
+    if (sig === msgSig && !forceScroll) return;
+    msgSig = sig;
+    mergeTail(events);
+    var stick = forceScroll === true || nearBottom();
+    renderMsgs(allEvents);
+    if (stick) msgsEl.scrollTop = msgsEl.scrollHeight;
+  } catch (e) { /* 下轮再试 */ }
+}
+document.getElementById('btn-older').onclick = function () {
+  if (!current || loadingOld || !allEvents.length) return;
+  loadingOld = true;
+  var oldest = allEvents[0].seq;
+  api('/api/session/' + encodeURIComponent(current) + '/transcript?before=' + oldest).then(function (j) {
+    var older = (j.events || []).filter(function (e) {
+      return e.seq < oldest;
+    });
+    if (older.length) {
+      var beforeH = msgsEl.scrollHeight;
+      mergeTail(older);
+      hasMoreOld = j.hasMore === true;
+      renderMsgs(allEvents);
+      msgsEl.scrollTop = msgsEl.scrollHeight - beforeH + msgsEl.scrollTop; // 保持视口不跳
+    } else {
+      hasMoreOld = false;
+    }
+    document.getElementById('btn-older').style.display = hasMoreOld ? '' : 'none';
+  }).catch(function () { /* 忽略 */ }).finally(function () { loadingOld = false; });
+};
+setInterval(refreshStatus, 3000);
+setInterval(function () { if (current) refreshMsgs(false); }, 2000);
+
+/* —— 操作 —— */
+function openSession(id) {
+  current = id;
+  lastSeq = -1;
+  msgSig = '';
+  allEvents = [];
+  hasMoreOld = false;
+  listEl.style.display = 'none';
+  detailEl.classList.add('on');
+  refreshMsgs(true);
+}
+document.getElementById('btn-back').onclick = function () {
+  current = null;
+  detailEl.classList.remove('on');
+  listEl.style.display = '';
+  renderList();
+};
+document.getElementById('send').onclick = send;
+var pending = [];
+function renderPending() {
+  var html = '';
+  pending.forEach(function (a, idx) {
+    var thumb = a.mime === 'image/jpeg' || a.mime === 'image/png'
+      ? '<img class="pthumb" src="' + a.data + '">'
+      : '<span class="pthumb doc">📄</span>';
+    html += '<div class="pchip">' + thumb + '<span class="pname">' + esc(a.name) + '</span>'
+      + '<button class="px" onclick="removePending(' + idx + ')">×</button></div>';
+  });
+  document.getElementById('pending').innerHTML = html;
+}
+function removePending(i) { pending.splice(i, 1); renderPending(); }
+function readAsDataUrl(file) {
+  return new Promise(function (resolve, reject) {
+    if (file.size > 8 * 1024 * 1024) return reject(new Error('文件超过 8MB'));
+    var r = new FileReader();
+    r.onload = function () { resolve({ name: file.name || 'file', mime: file.type || 'application/octet-stream', data: r.result }); };
+    r.onerror = function () { reject(new Error('读取失败')); };
+    r.readAsDataURL(file);
+  });
+}
+function convertImage(file) {
+  return new Promise(function (resolve, reject) {
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function () {
+      try {
+        var w = img.naturalWidth, h = img.naturalHeight;
+        var scale = Math.min(1, 1600 / Math.max(w, h));
+        var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+        var canvas = document.createElement('canvas');
+        canvas.width = cw; canvas.height = ch;
+        canvas.getContext('2d').drawImage(img, 0, 0, cw, ch);
+        URL.revokeObjectURL(url);
+        var name = (file.name || 'photo.jpg').replace(/\.(heic|heif)$/i, '.jpg');
+        resolve({ name: name, mime: 'image/jpeg', data: canvas.toDataURL('image/jpeg', 0.85) });
+      } catch (e) { URL.revokeObjectURL(url); reject(e); }
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('图片解码失败')); };
+    img.src = url;
+  });
+}
+document.getElementById('attach').onclick = function () { document.getElementById('file').click(); };
+document.getElementById('file').onchange = function () {
+  var files = Array.prototype.slice.call(this.files || []);
+  this.value = '';
+  var queue = Promise.resolve();
+  files.forEach(function (f) {
+    if (pending.length >= 4) return;
+    queue = queue.then(function () {
+      var isImage = (f.type && f.type.indexOf('image/') === 0) || /\.(png|jpe?g|gif|webp|heic|heif)$/i.test(f.name);
+      var p = isImage ? convertImage(f) : readAsDataUrl(f);
+      return p.then(function (att) { pending.push(att); renderPending(); });
+    }).catch(function (e) { alert('附件处理失败：' + e.message); });
+  });
+};
+function send() {
+  var input = document.getElementById('input');
+  var text = input.value.trim();
+  if ((!text && !pending.length) || !current) return;
+  var btn = document.getElementById('send');
+  btn.disabled = true;
+  btn.textContent = '发送中…';
+  var payload = { text: text, attachments: pending };
+  var sentAtt = pending;
+  api('/api/session/' + encodeURIComponent(current) + '/prompt', {
+    method: 'POST', body: JSON.stringify(payload),
+  }).then(function () {
+    input.value = '';
+    if (pending === sentAtt) { pending = []; renderPending(); }
+    refreshMsgs(true); refreshStatus();
+  }).catch(function (e) {
+    alert('发送失败：' + e.message);
+  }).finally(function () { btn.disabled = false; btn.textContent = '发送'; });
+}
+document.getElementById('btn-cancel').onclick = function () {
+  if (!current) return;
+  if (!confirm('停止当前任务？')) return;
+  api('/api/session/' + encodeURIComponent(current) + '/cancel', { method: 'POST' })
+    .then(function () { refreshStatus(); refreshMsgs(); })
+    .catch(function (e) { alert('取消失败：' + e.message); });
+};
+document.getElementById('btn-new').onclick = function () {
+  api('/api/session', { method: 'POST', body: '{}' }).then(function (j) {
+    if (j.sessionId) { openSession(j.sessionId); refreshStatus(); }
+  }).catch(function (e) { alert('创建失败：' + e.message); });
+};
+document.getElementById('input').addEventListener('input', function () {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 140) + 'px';
+});
+
+refreshStatus();
+</script>
+</body>
+</html>

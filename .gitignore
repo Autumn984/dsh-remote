@@ -1,0 +1,7 @@
+node_modules/
+*.tgz
+*.log
+.DS_Store
+Thumbs.db
+# cloudflared 二进制体积大，不进 Git；tgz / Release 发布时随包分发
+src/native/
